@@ -5,14 +5,21 @@
   「システムプロンプト」「社内メモ」の類は、1度でも相手に届くと取り返しがつかない。
   相手に届く経路の直前で、語の単位で止める。
 """
+
 from __future__ import annotations
 
-import re
 from .base import Context, Finding, Verdict
 
 DEFAULT_FORBIDDEN = (
-    "system prompt", "システムプロンプト", "プロンプト注入", "prompt injection",
-    "社内メモ", "内部資料", "TODO:", "FIXME", "とりあえず",
+    "system prompt",
+    "システムプロンプト",
+    "プロンプト注入",
+    "prompt injection",
+    "社内メモ",
+    "内部資料",
+    "TODO:",
+    "FIXME",
+    "とりあえず",
 )
 
 

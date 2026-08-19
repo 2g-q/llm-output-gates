@@ -4,6 +4,7 @@
 LLM を呼ばない決定的な判定に寄せてある(同じ入力なら同じ結果になること、
 そして 0 円で何度でも回せることを優先した)。
 """
-from .base import Gate, Verdict, Finding
+
+from .base import Finding, Gate, Verdict
 
 __all__ = ["Gate", "Verdict", "Finding"]

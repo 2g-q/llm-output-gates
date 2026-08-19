@@ -6,9 +6,10 @@
   - 警告(warn)と停止(block)を分ける。全部止めると運用が回らず、
     全部警告にすると誰も読まない。
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Any, Protocol
 
 
@@ -16,9 +17,9 @@ from typing import Any, Protocol
 class Finding:
     """1件の指摘。"""
 
-    code: str            # 機械で集計するための短い識別子
-    message: str         # 人が読む説明
-    quote: str = ""      # 本文中の該当箇所
+    code: str  # 機械で集計するための短い識別子
+    message: str  # 人が読む説明
+    quote: str = ""  # 本文中の該当箇所
     level: str = "block"  # "block" | "warn"
 
     def as_dict(self) -> dict[str, Any]:
@@ -31,7 +32,7 @@ class Verdict:
 
     gate: str
     findings: list[Finding] = field(default_factory=list)
-    skipped: str | None = None   # 実行しなかった理由(空文字でなく理由を必ず入れる)
+    skipped: str | None = None  # 実行しなかった理由(空文字でなく理由を必ず入れる)
 
     @property
     def blocked(self) -> bool:
@@ -60,7 +61,7 @@ class Gate(Protocol):
     name: str
     cost: int
 
-    def check(self, body: str, ctx: "Context") -> Verdict: ...
+    def check(self, body: str, ctx: Context) -> Verdict: ...
 
 
 @dataclass

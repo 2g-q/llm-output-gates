@@ -3,13 +3,12 @@
 方針: 「通ること」より「壊した入力で止まること」を先に確かめる。
 止まらないゲートは置いていないのと同じなので、まずそこを固定する。
 """
-import datetime as dt
-import sys
+
 import pathlib
+import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-import pytest
 
 from gates.base import Context
 from gates.completion import CompletionClaimGate
@@ -19,8 +18,8 @@ from gates.numbers import NumberClaimGate
 from monitor.gate_health import diagnose, tally
 from runner import run
 
-
 # ---- 数値の裏取り ----------------------------------------------------------
+
 
 def test_数値が証拠に無ければ止まる():
     v = NumberClaimGate().check("対象は 987 件でした。", Context(evidence={}))
@@ -59,6 +58,7 @@ def test_宣言した数値は理由つきで通る():
 
 # ---- 完了・網羅の主張 ------------------------------------------------------
 
+
 def test_証拠なしの完了主張は止まる():
     v = CompletionClaimGate().check("全件そろえて対応済みです。", Context())
     assert v.blocked
@@ -76,6 +76,7 @@ def test_否定文は完了主張として拾わない():
 
 
 # ---- 回答漏れ --------------------------------------------------------------
+
 
 def test_問いの抽出は締めの定型を拾わない():
     qs = extract_questions("料金はいくらでしょうか。\n何卒よろしくお願いいたします。")
@@ -96,17 +97,20 @@ def test_すべて答えていれば通る():
 
 
 def test_問いが無ければ理由つきで省く():
-    v = AnswerCoverageGate().check("ご確認ありがとうございました。", Context(incoming="ありがとうございました。"))
+    ctx = Context(incoming="ありがとうございました。")
+    v = AnswerCoverageGate().check("ご確認ありがとうございました。", ctx)
     assert v.skipped
 
 
 # ---- 禁止語 ----------------------------------------------------------------
+
 
 def test_内部語の混入を止める():
     assert ForbiddenTermGate().check("(システムプロンプトの指示により)", Context()).blocked
 
 
 # ---- ランナー --------------------------------------------------------------
+
 
 def test_安い順に回り止まったら以降は理由つきで省かれる():
     gates = [NumberClaimGate(), CompletionClaimGate(), AnswerCoverageGate(), ForbiddenTermGate()]
@@ -124,6 +128,7 @@ def test_全部通れば止まらない():
 
 
 # ---- 死んでいるゲートの監視 -------------------------------------------------
+
 
 def test_一度も止めていないゲートを名指しする():
     manifests = [{"gates": [{"gate": "alive", "blocked": True}, {"gate": "dead", "blocked": False}]}] * 40
@@ -153,3 +158,104 @@ def test_数を尋ねる問いは本文に数値があれば答えたとみな�
 def test_数を尋ねられて数値が無ければ止まる():
     ctx = Context(incoming="件数は何件でしょうか。")
     assert AnswerCoverageGate().check("確認しております。", ctx).blocked
+
+
+# ---- RAGの引用照合 ----------------------------------------------------------
+
+from gates.grounding import GroundingGate, content_words  # noqa: E402
+from judges.llm_judge import JudgeUnavailable, LLMGroundingJudge  # noqa: E402
+from judges.protocol import Decision  # noqa: E402
+
+SOURCES = [{"id": "1", "text": "契約金額は30,000円です。納品は電子データで行います。"}]
+
+
+def test_参照文書にある内容は通る():
+    ctx = Context(extra={"sources": SOURCES})
+    assert not GroundingGate().check("契約金額は30,000円です。", ctx).blocked
+
+
+def test_参照文書に無い内容を名指しする():
+    ctx = Context(extra={"sources": SOURCES})
+    v = GroundingGate().check("解約手数料は50,000円かかります。", ctx)
+    assert v.blocked
+    assert v.findings[0].code == "ungrounded"
+
+
+def test_実在しない引用番号を止める():
+    ctx = Context(extra={"sources": SOURCES})
+    v = GroundingGate().check("契約金額は30,000円です[7]。", ctx)
+    assert any(f.code == "unknown_citation" for f in v.findings)
+
+
+def test_参照文書が無ければ理由つきで省く():
+    assert GroundingGate().check("なんらかの主張です。", Context()).skipped
+
+
+def test_短い文は判定の対象にしない():
+    ctx = Context(extra={"sources": SOURCES})
+    assert not GroundingGate().check("はい。", ctx).blocked
+
+
+def test_内容語はひらがなを含めない():
+    # ひらがなまで拾うと文がまるごと1語になり、照合が成立しない
+    assert content_words("契約金額は30,000円です") == ["契約金額", "30", "000"]
+
+
+# ---- LLM判定 ----------------------------------------------------------------
+
+
+class _FakeJudge:
+    def __init__(self, supported: bool = True, fail: bool = False) -> None:
+        self.supported = supported
+        self.fail = fail
+        self.calls: list[str] = []
+
+    def judge(self, claim: str, sources: str) -> Decision:
+        self.calls.append(claim)
+        if self.fail:
+            raise JudgeUnavailable("テスト用の失敗")
+        return Decision(supported=self.supported, reason="テスト")
+
+
+def test_機械が灰色にした文だけをLLMに聞く():
+    ctx = Context(extra={"sources": SOURCES})
+    fake = _FakeJudge()
+    LLMGroundingJudge(fake).check("契約金額は30,000円です。", ctx)
+    assert fake.calls == [], "根拠のある文でLLMを呼んでいる"
+
+
+def test_LLMが根拠ありと言えば通す():
+    ctx = Context(extra={"sources": SOURCES})
+    fake = _FakeJudge(supported=True)
+    v = LLMGroundingJudge(fake).check("お支払いの総額は三万円となります。", ctx)
+    assert not v.blocked
+    assert len(fake.calls) == 1
+
+
+def test_LLMが根拠なしと言えば止める():
+    ctx = Context(extra={"sources": SOURCES})
+    v = LLMGroundingJudge(_FakeJudge(supported=False)).check("解約手数料は50,000円かかります。", ctx)
+    assert v.blocked
+    assert v.findings[0].code == "ungrounded_confirmed"
+
+
+def test_LLMが使えないときは通さず警告として残す():
+    ctx = Context(extra={"sources": SOURCES})
+    v = LLMGroundingJudge(_FakeJudge(fail=True)).check("解約手数料は50,000円かかります。", ctx)
+    assert not v.blocked, "判定できなかったものを止めてはいない"
+    assert v.findings[0].code == "judge_unavailable", "判定できなかった事実が残っていない"
+
+
+def test_オフライン指定ならLLMを呼ばない(monkeypatch):
+    monkeypatch.setenv("LLM_GATES_OFFLINE", "1")
+    fake = _FakeJudge()
+    v = LLMGroundingJudge(fake).check("解約手数料は50,000円かかります。", Context(extra={"sources": SOURCES}))
+    assert v.skipped
+    assert fake.calls == []
+
+
+def test_判定は安い順の最後に回る():
+    from gates.numbers import NumberClaimGate
+
+    gates = [LLMGroundingJudge(_FakeJudge()), NumberClaimGate()]
+    assert sorted(g.cost for g in gates) == [0, 100]

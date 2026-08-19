@@ -10,11 +10,13 @@
   実行のたびに manifest(JSON)を残す。どのゲートが何回動いて何回止めたかを
   後から数えられないと、「効いているのか」を誰も確かめられない。
 """
+
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from gates.base import Context, Gate, Verdict
 
@@ -47,8 +49,6 @@ def run(body: str, ctx: Context, gates: Sequence[Gate], stop_on_block: bool = Tr
                 for skipped in sorted(gates, key=lambda g: g.cost):
                     if skipped.name in {v.gate for v in verdicts}:
                         continue
-                    verdicts.append(
-                        Verdict(gate=skipped.name, skipped=f"{gate.name} で止まったため")
-                    )
+                    verdicts.append(Verdict(gate=skipped.name, skipped=f"{gate.name} で止まったため"))
                 break
     return RunResult(blocked=blocked, verdicts=verdicts)

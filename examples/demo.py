@@ -1,7 +1,8 @@
 """動かして挙動を見るためのサンプル。
 
-  python examples/demo.py
+python examples/demo.py
 """
+
 import pathlib
 import sys
 

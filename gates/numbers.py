@@ -10,10 +10,12 @@
   証拠が誤っていれば、その誤りごと通る。ここを混同すると「検査したのに間違っていた」
   という失望につながるので、README にも同じ但し書きを書いてある。
 """
+
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .base import Context, Finding, Verdict
 

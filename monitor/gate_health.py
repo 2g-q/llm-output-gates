@@ -15,6 +15,7 @@
 例外を認める場合も、理由と見直し期限を必須にした。期限切れは「登録が無い」のと
 同じ扱いにしてある。保留のまま放置できる設計にすると、判断が先送りされ続ける。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,7 @@ from typing import Any
 DEFAULT_MIN_RUNS = 30
 
 
-class Exception_(dict):
+class Exception_(dict[str, str]):
     """意図して不合格 0 件のゲート。理由と見直し期限が必須。"""
 
 
@@ -74,9 +75,7 @@ def diagnose(
             note = exceptions.get(name)
             reason = _valid_exception(note, today)
             if reason:
-                warnings.append(
-                    f"[許容] {name}: {s['executed']}回まわって不合格0件。理由={reason}"
-                )
+                warnings.append(f"[許容] {name}: {s['executed']}回まわって不合格0件。理由={reason}")
             else:
                 warnings.append(
                     f"[死んでいる疑い] {name}: {s['executed']}回まわって不合格0件。"
@@ -122,7 +121,9 @@ def main(argv: list[str] | None = None) -> int:
 
     for name, s in sorted(stats.items()):
         rate = (s["blocked"] / s["executed"] * 100) if s["executed"] else 0.0
-        print(f"{name:20s} 実行{s['executed']:5d}  停止{s['blocked']:5d} ({rate:5.1f}%)  skip{s['skipped']:5d}")
+        print(
+            f"{name:20s} 実行{s['executed']:5d}  停止{s['blocked']:5d} ({rate:5.1f}%)  skip{s['skipped']:5d}"
+        )
 
     warnings = diagnose(stats, min_runs=args.min_runs)
     if warnings:
