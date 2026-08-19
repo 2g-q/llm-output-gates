@@ -110,6 +110,7 @@ pip install -e ".[judge]"  # LLM判定つき
 
 ```python
 from judges.llm_judge import AnthropicJudgeClient, LLMGroundingJudge
+
 judge = LLMGroundingJudge(AnthropicJudgeClient())  # ANTHROPIC_API_KEY を読む
 ```
 

@@ -7,6 +7,8 @@
 import pathlib
 import sys
 
+import pytest
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 
@@ -204,6 +206,19 @@ def test_内容語はひらがなを含めない():
 # ---- LLM判定 ----------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _judge_logic_runs(monkeypatch):
+    """判定ロジックのテストは、環境変数の有無に左右されないようにする。
+
+    LLM_GATES_OFFLINE は運用側の止めスイッチであって、
+    テストが「検査を動かして確かめる」ことを妨げてはいけない。
+    実際にCIでこれを立てたところ、偽クライアントを使う3本が黙って素通りした
+    (=検査が動いていないのに緑になる一歩手前だった)。
+    スイッチ自体の検査は test_オフライン指定ならLLMを呼ばない が受け持つ。
+    """
+    monkeypatch.delenv("LLM_GATES_OFFLINE", raising=False)
+
+
 class _FakeJudge:
     def __init__(self, supported: bool = True, fail: bool = False) -> None:
         self.supported = supported
@@ -247,6 +262,7 @@ def test_LLMが使えないときは通さず警告として残す():
 
 
 def test_オフライン指定ならLLMを呼ばない(monkeypatch):
+    # fixture が消したうえで、この検査だけが明示的に立てる
     monkeypatch.setenv("LLM_GATES_OFFLINE", "1")
     fake = _FakeJudge()
     v = LLMGroundingJudge(fake).check("解約手数料は50,000円かかります。", Context(extra={"sources": SOURCES}))
